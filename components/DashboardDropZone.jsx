@@ -9,6 +9,83 @@ export default function DashboardDropZone({ widgets, moveWidget, onAddWidget }) 
 
   const [{ isOver }, drop] = useDrop({
     accept: 'widget',
+    hover: (item, monitor) => {
+      if (!dropRef.current) return
+      
+      if (!monitor.isOver({ shallow: true })) return
+      
+      const clientOffset = monitor.getClientOffset()
+      if (!clientOffset) return
+
+      const gridElement = dropRef.current
+      const gridRect = gridElement.getBoundingClientRect()
+      
+      const isMd = window.innerWidth >= 768
+      const isLg = window.innerWidth >= 1024
+      const cols = isLg ? 3 : isMd ? 2 : 1
+      
+      const padding = 8 
+      const x = clientOffset.x - gridRect.left - padding
+      const y = clientOffset.y - gridRect.top - padding
+      
+      const gap = 16 
+      const availableWidth = gridRect.width - (gap * (cols - 1)) - (padding * 2)
+      const cellWidth = availableWidth / cols
+      
+      let col = Math.floor(x / (cellWidth + gap))
+      const xInCell = x % (cellWidth + gap)
+      if (xInCell > cellWidth) {
+        col = Math.floor(x / (cellWidth + gap))
+      }
+      col = Math.max(0, Math.min(col, cols - 1))
+      
+      const estimatedWidgetHeight = 350 
+      const rowHeight = estimatedWidgetHeight + gap
+      let row = Math.floor(y / rowHeight)
+      row = Math.max(0, row)
+      
+      let targetIndex = row * cols + col
+      
+      targetIndex = Math.min(targetIndex, widgets.length)
+      
+      if (item.index !== undefined && item.index !== targetIndex) {
+        moveWidget(item.index, targetIndex)
+        item.index = targetIndex
+      }
+    },
+    drop: (item, monitor) => {
+      if (!dropRef.current) return { dropped: true }
+      
+      const clientOffset = monitor.getClientOffset()
+      if (!clientOffset) return { dropped: true }
+
+      const gridElement = dropRef.current
+      const gridRect = gridElement.getBoundingClientRect()
+      
+      const isMd = window.innerWidth >= 768
+      const isLg = window.innerWidth >= 1024
+      const cols = isLg ? 3 : isMd ? 2 : 1
+      
+      const padding = 8
+      const x = clientOffset.x - gridRect.left - padding
+      const y = clientOffset.y - gridRect.top - padding
+      
+      const gap = 16
+      const availableWidth = gridRect.width - (gap * (cols - 1)) - (padding * 2)
+      const cellWidth = availableWidth / cols
+      
+      const col = Math.max(0, Math.min(Math.floor(x / (cellWidth + gap)), cols - 1))
+      const estimatedWidgetHeight = 350
+      const row = Math.max(0, Math.floor(y / (estimatedWidgetHeight + gap)))
+      
+      const targetIndex = Math.min(row * cols + col, widgets.length)
+      
+      if (item.index !== undefined && item.index !== targetIndex) {
+        moveWidget(item.index, targetIndex)
+      }
+      
+      return { dropped: true, targetIndex }
+    },
     collect: (monitor) => ({
       isOver: monitor.isOver(),
     }),
@@ -43,7 +120,7 @@ export default function DashboardDropZone({ widgets, moveWidget, onAddWidget }) 
   return (
     <div
       ref={dropRef}
-      className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 min-h-[400px] ${
+      className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 min-h-[400px] ${
         isOver ? 'bg-primary-50 dark:bg-primary-900/10' : ''
       } transition-colors rounded-lg p-2`}
     >
@@ -53,6 +130,7 @@ export default function DashboardDropZone({ widgets, moveWidget, onAddWidget }) 
           widget={widget}
           index={index}
           moveWidget={moveWidget}
+          totalWidgets={widgets.length}
         />
       ))}
 
