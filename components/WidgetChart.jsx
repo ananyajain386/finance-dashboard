@@ -62,7 +62,7 @@ export default function WidgetChart({ widget, data }) {
   }, [data, widget.selectedFields])
 
   const chartData = useMemo(() => {
-    if (!numericFields || numericFields.length === 0) {
+    if (!numericFields || numericFields.length === 0 || !data) {
       return []
     }
 
@@ -72,147 +72,131 @@ export default function WidgetChart({ widget, data }) {
           const result = { index }
           numericFields.forEach((field) => {
             const value = getNestedValue(item, field.path)
+            const fieldKey = field.label || field.path
             if (isNumericValue(value)) {
-              result[field.label || field.path] = typeof value === 'string' ? parseFloat(value) : value
+              result[fieldKey] = typeof value === 'string' ? parseFloat(value) : value
             } else {
-              result[field.label || field.path] = 0
+              result[fieldKey] = null
             }
           })
           return result
-        })
+        }).filter(item => Object.values(item).some(v => v !== null && v !== undefined && v !== 'index'))
       }
 
-      const timeSeriesKeys = ['timeSeries', 'values', 'data', 'series', 'history', 'feed']
-      for (const key of timeSeriesKeys) {
+      const timeSeriesPattern = /time.?series/i
+      for (const key in data) {
+        if (timeSeriesPattern.test(key) && typeof data[key] === 'object' && data[key] !== null && !Array.isArray(data[key])) {
+          const timeSeriesData = data[key]
+          const timestamps = Object.keys(timeSeriesData).sort().reverse().slice(0, 100) 
+          
+          const chartPoints = timestamps.map((timestamp, index) => {
+            const result = { index, timestamp: timestamp.split(' ')[0] } 
+            const timestampData = timeSeriesData[timestamp]
+            
+            numericFields.forEach((field) => {
+              let propertyName = field.path
+              
+              if (field.path.includes(key)) {
+                const pathParts = field.path.split('_')
+                let keyEndIndex = -1
+                for (let i = 0; i < pathParts.length; i++) {
+                  if (pathParts.slice(0, i + 1).join('_').includes(key)) {
+                    keyEndIndex = i
+                    break
+                  }
+                }
+                
+                if (keyEndIndex >= 0 && pathParts.length > keyEndIndex + 2) {
+                  propertyName = pathParts.slice(keyEndIndex + 2).join('_')
+                } else if (pathParts.length > 0) {
+                  propertyName = pathParts[pathParts.length - 1]
+                }
+              } else {
+                const pathParts = field.path.split('_')
+                if (pathParts.length > 0) {
+                  propertyName = pathParts[pathParts.length - 1]
+                }
+              }
+              
+              let value = timestampData[propertyName]
+              
+              if (value === undefined || value === null) {
+                const propertyBase = propertyName.replace(/\d+\.\s*/, '').trim().toLowerCase()
+                for (const prop in timestampData) {
+                  const propBase = prop.replace(/\d+\.\s*/, '').trim().toLowerCase()
+                  if (prop === propertyName || 
+                      propBase === propertyBase || 
+                      prop.includes(propertyBase) || 
+                      propertyBase.includes(propBase)) {
+                    value = timestampData[prop]
+                    break
+                  }
+                }
+              }
+              
+              const fieldKey = field.label || propertyName.replace(/\d+\.\s*/, '').trim() || field.path
+              
+              if (isNumericValue(value)) {
+                result[fieldKey] = typeof value === 'string' ? parseFloat(value) : value
+              } else {
+                result[fieldKey] = null
+              }
+            })
+            
+            return result
+          })
+          
+          return chartPoints.filter(item => {
+            const numericValues = Object.entries(item).filter(([k]) => k !== 'index' && k !== 'timestamp')
+            return numericValues.some(([_, v]) => v !== null && v !== undefined)
+          })
+        }
+      }
+
+      const arrayKeys = ['timeSeries', 'values', 'data', 'series', 'history', 'feed']
+      for (const key of arrayKeys) {
         if (data[key] && Array.isArray(data[key])) {
-          return data[key].map((item, index) => {
+          return data[key].slice(0, 100).map((item, index) => {
             const result = { index }
             numericFields.forEach((field) => {
               let propertyPath = field.path
               if (field.path.startsWith(`${key}_`)) {
                 const parts = field.path.split('_')
-                if (parts.length >= 3 && parts[0] === key) {
-                  const secondPart = parts[1]
-                  if (!isNaN(parseInt(secondPart, 10))) {
-                    propertyPath = parts.slice(2).join('_')
-                  } else {
-                    propertyPath = parts.slice(1).join('.')
-                  }
+                if (parts.length >= 3 && parts[0] === key && !isNaN(parseInt(parts[1], 10))) {
+                  propertyPath = parts.slice(2).join('_')
+                } else if (parts.length >= 2) {
+                  propertyPath = parts.slice(1).join('_')
                 }
               }
               
-              const value = getNestedValue(item, propertyPath) || getNestedValue(item, field.path)
+              const value = getNestedValue(item, propertyPath) || (typeof item === 'object' ? item[propertyPath] : undefined)
               const fieldKey = field.label || field.path
               
               if (isNumericValue(value)) {
                 result[fieldKey] = typeof value === 'string' ? parseFloat(value) : value
               } else {
-                const numValue = parseFloat(value)
-                result[fieldKey] = (!isNaN(numValue) && isFinite(numValue)) ? numValue : 0
+                result[fieldKey] = null
               }
             })
             return result
-          })
+          }).filter(item => Object.values(item).some(v => v !== null && v !== undefined && v !== 'index'))
         }
       }
 
-      const timeSeriesPattern = /time.?series|timeseries/i
-      for (const key in data) {
-        if (timeSeriesPattern.test(key) && typeof data[key] === 'object' && data[key] !== null && !Array.isArray(data[key])) {
-          const timeSeriesData = data[key]
-          const timestamps = Object.keys(timeSeriesData).sort().reverse() 
-          
-          return timestamps.map((timestamp, index) => {
-            const result = { index, timestamp }
-            const timestampData = timeSeriesData[timestamp]
-            
-            numericFields.forEach((field) => {
-              let propertyPath = field.path
-              
-              if (field.path.includes(key)) {
-                const pathParts = field.path.split('_')
-                const keyIndex = pathParts.findIndex(p => p.includes(key) || timeSeriesPattern.test(p))
-                
-                if (keyIndex >= 0 && pathParts.length > keyIndex + 1) {
-                  const possibleTimestamp = pathParts[keyIndex + 1]
-                  if (possibleTimestamp === timestamp || timestamps.includes(possibleTimestamp)) {
-                    propertyPath = pathParts.slice(keyIndex + 2).join('_')
-                  } else {
-                    propertyPath = pathParts.slice(keyIndex + 1).join('_')
-                  }
-                }
-              }
-              
-              const value = getNestedValue(timestampData, propertyPath) || getNestedValue(timestampData, field.path)
-              const fieldKey = field.label || field.path
-              
-              if (isNumericValue(value)) {
-                result[fieldKey] = typeof value === 'string' ? parseFloat(value) : value
-              } else {
-                const numValue = parseFloat(value)
-                result[fieldKey] = (!isNaN(numValue) && isFinite(numValue)) ? numValue : 0
-              }
-            })
-            
-            return result
-          })
-        }
-      }
-
-      const result = { index: 0 } 
+      const result = { index: 0 }
       numericFields.forEach((field) => {
         const value = getNestedValue(data, field.path)
         const fieldKey = field.label || field.path
         
-        if (value === undefined || value === null) {
-          console.warn(`[WidgetChart] Value not found for path: "${field.path}", label: "${field.label}", trying alternatives...`)
-        }
-        
-        if (value !== undefined && value !== null) {
-          if (isNumericValue(value)) {
-            const numValue = typeof value === 'string' ? parseFloat(value) : value
-            result[fieldKey] = numValue
-            console.log(`[WidgetChart] Set ${fieldKey} = ${numValue} (from path: ${field.path})`)
-          } else {
-            const numValue = parseFloat(value)
-            if (!isNaN(numValue) && isFinite(numValue)) {
-              result[fieldKey] = numValue
-              console.log(`[WidgetChart] Set ${fieldKey} = ${numValue} (parsed from: ${value})`)
-            } else {
-              result[fieldKey] = 0
-              console.warn(`[WidgetChart] Could not parse ${fieldKey} from value: ${value}`)
-            }
-          }
+        if (value !== undefined && value !== null && isNumericValue(value)) {
+          result[fieldKey] = typeof value === 'string' ? parseFloat(value) : value
         } else {
-          const altPaths = [
-            field.path.replace(/_/g, '.'), 
-            field.path.replace(/\./g, '_'),
-          ]
-          
-          let foundValue = null
-          let foundPath = null
-          for (const altPath of altPaths) {
-            if (altPath === field.path) continue 
-            const altValue = getNestedValue(data, altPath)
-            if (altValue !== undefined && altValue !== null && isNumericValue(altValue)) {
-              foundValue = altValue
-              foundPath = altPath
-              break
-            }
-          }
-          
-          if (foundValue !== null) {
-            const numValue = typeof foundValue === 'string' ? parseFloat(foundValue) : foundValue
-            result[fieldKey] = numValue
-            console.log(`[WidgetChart] Set ${fieldKey} = ${numValue} (from alternative path: ${foundPath})`)
-          } else {
-            result[fieldKey] = 0
-            console.error(`[WidgetChart] Could not find value for ${fieldKey} (path: ${field.path}), data keys:`, Object.keys(data || {}))
-          }
+          result[fieldKey] = null
         }
       })
-      console.log(`[WidgetChart] Final chart data:`, result)
-      return Object.keys(result).length > 1 ? [result] : [] 
+      
+      const hasValidData = Object.entries(result).some(([k, v]) => k !== 'index' && v !== null && v !== undefined)
+      return hasValidData ? [result] : []
     }
 
     return extractTimeSeries(data)
@@ -234,9 +218,12 @@ export default function WidgetChart({ widget, data }) {
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
-            dataKey="index"
+            dataKey={chartData[0]?.timestamp ? 'timestamp' : 'index'}
             stroke="#6b7280"
-            tick={{ fill: '#6b7280' }}
+            tick={{ fill: '#6b7280', fontSize: 12 }}
+            angle={-45}
+            textAnchor="end"
+            height={60}
           />
           <YAxis
             stroke="#6b7280"

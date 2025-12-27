@@ -97,12 +97,6 @@ export const defaultTemplates = [
             type: 'number',
             value: 1000,
             label: 'Shares'
-          },
-          {
-            path: 'data_0_share_price',
-            type: 'number',
-            value: 305.00,
-            label: 'Price'
           }
         ],
         cacheMaxAge: 30000
