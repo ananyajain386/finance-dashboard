@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import useDashboardStore from '@/store/useDashboardStore'
 import { showConfirm, showSuccess, showError } from '@/utils/swal'
 
@@ -9,6 +9,7 @@ export default function ExportImportModal({ isOpen, onClose }) {
   const [importText, setImportText] = useState('')
   const [importError, setImportError] = useState(null)
   const [importSuccess, setImportSuccess] = useState(false)
+  const fileInputRef = useRef(null)
 
   const handleExport = () => {
     const config = exportConfig()
@@ -55,6 +56,51 @@ export default function ExportImportModal({ isOpen, onClose }) {
       setImportError(errorMsg)
       showError('Import Failed', errorMsg)
     }
+  }
+
+  const handleFileSelect = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!file.name.endsWith('.json') && file.type !== 'application/json') {
+      const errorMsg = 'Please select a valid JSON file.'
+      setImportError(errorMsg)
+      showError('Import Failed', errorMsg)
+      return
+    }
+
+    setImportError(null)
+    setImportSuccess(false)
+
+    try {
+      const fileContent = await file.text()
+      setImportText(fileContent)
+      
+      const success = importConfig(fileContent)
+      if (success) {
+        setImportSuccess(true)
+        setImportText('')
+        await showSuccess('Configuration Imported!', 'Reloading dashboard...', 1500)
+        onClose()
+        window.location.reload()
+      } else {
+        const errorMsg = 'Invalid configuration format. Please check your JSON file.'
+        setImportError(errorMsg)
+        showError('Import Failed', errorMsg)
+      }
+    } catch (error) {
+      const errorMsg = 'Failed to read file. Please try again.'
+      setImportError(errorMsg)
+      showError('Import Failed', errorMsg)
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const handleImportFileClick = () => {
+    fileInputRef.current?.click()
   }
 
   const handleClearAll = async () => {
@@ -122,8 +168,38 @@ export default function ExportImportModal({ isOpen, onClose }) {
           <div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Import Configuration</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Paste a previously exported configuration to restore your dashboard.
+              Import a previously exported configuration file or paste JSON to restore your dashboard.
             </p>
+            
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            <div className="mb-4">
+              <button
+                onClick={handleImportFileClick}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Import from File
+              </button>
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">Or paste JSON</span>
+              </div>
+            </div>
+
             <textarea
               value={importText}
               onChange={(e) => {
@@ -132,7 +208,7 @@ export default function ExportImportModal({ isOpen, onClose }) {
                 setImportSuccess(false)
               }}
               placeholder="Paste your configuration JSON here..."
-              className="w-full h-48 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+              className="w-full h-48 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none mt-4"
             />
             {importError && (
               <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg text-sm">
