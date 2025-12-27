@@ -113,7 +113,7 @@ export default function AddWidgetModal({ isOpen, onClose }) {
         setSelectedFields(numericSelected)
       }
     }
-  }, [displayMode])
+  }, [displayMode, availableFields.length, selectedFields.length]) 
 
   const handleAddField = (field) => {
     if (!selectedFields.find((f) => f.path === field.path)) {

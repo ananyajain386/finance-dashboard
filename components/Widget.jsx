@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import useDashboardStore from '@/store/useDashboardStore'
 import { fetchApiData, getNestedValue } from '@/utils/api'
 import { autoFormat } from '@/utils/format'
@@ -19,12 +19,8 @@ export default function Widget({ widget, index }) {
   const [lastUpdated, setLastUpdated] = useState(null)
   const [isConfigOpen, setIsConfigOpen] = useState(false)
 
-  if (!widget || !widget.id) {
-    return null
-  }
-
-  const fetchData = async () => {
-    if (!widget.apiUrl) return
+  const fetchData = useCallback(async () => {
+    if (!widget?.apiUrl) return
 
     try {
       setLoading(true)
@@ -37,21 +33,25 @@ export default function Widget({ widget, index }) {
       setError(err.message)
       setLoading(false)
     }
-  }
+  }, [widget?.apiUrl, widget?.cacheMaxAge])
 
   useEffect(() => {
     fetchData()
-  }, [widget.apiUrl])
+  }, [fetchData])
 
   useEffect(() => {
-    if (!widget.apiUrl || !widget.refreshInterval) return
+    if (!widget?.apiUrl || !widget?.refreshInterval) return
 
     const interval = setInterval(() => {
       fetchData()
     }, widget.refreshInterval * 1000)
 
     return () => clearInterval(interval)
-  }, [widget.apiUrl, widget.refreshInterval])
+  }, [widget?.apiUrl, widget?.refreshInterval, fetchData])
+
+  if (!widget || !widget.id) {
+    return null
+  }
 
   const handleRemove = async () => {
     const result = await showConfirm({
