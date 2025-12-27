@@ -13,8 +13,12 @@ apiClient.interceptors.request.use(
   (config) => {
     if (!config.url) return config
 
+    const provider = detectApiProvider(config.url)
+    if (provider === 'finnhub') {
+      return Promise.reject(new Error('Finnhub requests must use proxy. This should not happen.'))
+    }
+
     if (requiresApiKey(config.url)) {
-      const provider = detectApiProvider(config.url)
       const apiKey = getApiKey(provider)
 
       if (apiKey && apiKey !== 'demo') {
@@ -22,14 +26,6 @@ apiClient.interceptors.request.use(
         
         const separator = config.url.includes('?') ? '&' : '?'
         config.url = `${config.url}${separator}${paramName}=${apiKey}`
-      }
-    }
-
-    const provider = detectApiProvider(config.url)
-    if (provider === 'finnhub' && !config.headers['X-Finnhub-Token']) {
-      const apiKey = getApiKey('finnhub')
-      if (apiKey && apiKey !== 'demo') {
-        config.headers['X-Finnhub-Token'] = apiKey
       }
     }
 
@@ -64,8 +60,28 @@ export const fetchApiData = async (url, cacheMaxAge = 30000) => {
   }
 
   try {
-    const response = await apiClient(url)
-    const data = response.data
+    const provider = detectApiProvider(url)
+    let data
+    
+    if (provider === 'finnhub') {
+      const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`
+      const response = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `API Error: ${response.status} - ${response.statusText}`)
+      }
+      
+      data = await response.json()
+    } else {
+      const response = await apiClient(url)
+      data = response.data
+    }
     
     cache.setCached(url, data)
     
@@ -76,7 +92,7 @@ export const fetchApiData = async (url, cacheMaxAge = 30000) => {
     } else if (error.request) {
       throw new Error('Network Error: Unable to reach the API')
     } else {
-      throw new Error(`Error: ${error.message}`)
+      throw new Error(error.message || `Error: ${error.message}`)
     }
   }
 }
