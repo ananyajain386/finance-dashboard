@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import useDashboardStore from '@/store/useDashboardStore'
 import { fetchApiData, getNestedValue } from '@/utils/api'
 import { autoFormat } from '@/utils/format'
@@ -18,6 +18,7 @@ export default function Widget({ widget, index }) {
   const [error, setError] = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [isConfigOpen, setIsConfigOpen] = useState(false)
+  const hasInitiallyFetchedRef = useRef(false)
 
   const fetchData = useCallback(async () => {
     if (!widget?.apiUrl) return
@@ -36,8 +37,23 @@ export default function Widget({ widget, index }) {
   }, [widget?.apiUrl, widget?.cacheMaxAge])
 
   useEffect(() => {
+    if (!widget?.apiUrl || hasInitiallyFetchedRef.current) return
+
+    const idHash = widget?.id ? parseInt(widget.id.slice(-3), 36) % 4 : (index || 0)
+    const delay = idHash * 500
+    
+    const timeoutId = setTimeout(() => {
+      fetchData()
+      hasInitiallyFetchedRef.current = true
+    }, delay)
+
+    return () => clearTimeout(timeoutId)
+  }, []) 
+
+  useEffect(() => {
+    if (!hasInitiallyFetchedRef.current || !widget?.apiUrl) return
     fetchData()
-  }, [fetchData])
+  }, [widget?.apiUrl, fetchData])
 
   useEffect(() => {
     if (!widget?.apiUrl || !widget?.refreshInterval) return
@@ -122,11 +138,6 @@ export default function Widget({ widget, index }) {
             <h2 className="font-semibold text-gray-900 dark:text-white text-lg">
               {widget.name || 'Untitled Widget'}
             </h2>
-            {widget.refreshInterval && (
-              <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-                {widget.refreshInterval}s
-              </span>
-            )}
           </div>
           
           <div className="flex items-center gap-2">

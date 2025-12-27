@@ -7,12 +7,14 @@ import AddWidgetModal from './AddWidgetModal'
 import DashboardDropZone from './DashboardDropZone'
 import clsx from 'clsx'
 import ExportImportModal from './ExportImportModal'
+import ChangeTemplateModal from './ChangeTemplateModal'
 
 export default function Dashboard() {
   const { widgets, moveWidget } = useDashboardStore()
   const { theme, toggleTheme } = useTheme()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isExportImportOpen, setIsExportImportOpen] = useState(false)
+  const [isChangeTemplateOpen, setIsChangeTemplateOpen] = useState(false)
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
@@ -37,8 +39,18 @@ export default function Dashboard() {
             
             <div className="flex items-center gap-3">
               <button
+                onClick={() => setIsChangeTemplateOpen(true)}
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1v-3z" />
+                </svg>
+                Change Template
+              </button>
+
+              <button
                 onClick={() => setIsExportImportOpen(true)}
-                className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
                 aria-label="Export/Import"
                 title="Export/Import Configuration"
               >
@@ -96,6 +108,13 @@ export default function Dashboard() {
         <ExportImportModal
           isOpen={isExportImportOpen}
           onClose={() => setIsExportImportOpen(false)}
+        />
+      )}
+
+      {isChangeTemplateOpen && (
+        <ChangeTemplateModal
+          isOpen={isChangeTemplateOpen}
+          onClose={() => setIsChangeTemplateOpen(false)}
         />
       )}
     </div>

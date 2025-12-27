@@ -1,22 +1,47 @@
 'use client'
 
-import { getNestedValue } from '@/utils/api'
+import { useState, useEffect } from 'react'
+import { getNestedValue, extractFields } from '@/utils/api'
 import { autoFormat } from '@/utils/format'
 
 export default function WidgetCard({ widget, data }) {
-  if (!widget.selectedFields || widget.selectedFields.length === 0) {
+  const [autoFields, setAutoFields] = useState([])
+
+  useEffect(() => {
+    if ((!widget.selectedFields || widget.selectedFields.length === 0) && data) {
+      const fields = extractFields(data)
+      const topFields = fields
+        .filter(f => f.type !== 'object' && f.type !== 'array' && f.value !== null && f.value !== undefined)
+        .slice(0, 4)
+        .map(f => ({
+          path: f.path,
+          type: f.type,
+          value: f.value,
+          label: f.path.split('_').pop().replace(/\d+\.\s*/, '') || f.path
+        }))
+      setAutoFields(topFields)
+    } else {
+      setAutoFields([])
+    }
+  }, [data, widget.selectedFields])
+
+  const fieldsToDisplay = (widget.selectedFields && widget.selectedFields.length > 0) 
+    ? widget.selectedFields 
+    : autoFields
+
+  if (!fieldsToDisplay || fieldsToDisplay.length === 0) {
     return (
       <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-        No fields selected. Configure the widget to select fields.
+        No fields available. Configure the widget to select fields.
       </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      {widget.selectedFields.map((field, index) => {
+      {fieldsToDisplay.map((field, index) => {
         const value = getNestedValue(data, field.path)
-        const label = field.label || field.path.split('.').pop() || 'Field'
+        const label = field.label || field.path.split('_').pop().replace(/\d+\.\s*/, '') || 'Field'
 
         return (
           <div

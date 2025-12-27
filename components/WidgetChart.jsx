@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { getNestedValue } from '@/utils/api'
+import { getNestedValue, extractFields } from '@/utils/api'
 
 export default function WidgetChart({ widget, data }) {
   const isNumericValue = (value) => {
@@ -21,12 +21,26 @@ export default function WidgetChart({ widget, data }) {
   }
 
   const numericFields = useMemo(() => {
-    if (!widget.selectedFields || widget.selectedFields.length === 0) {
-      return []
-    }
     if (!data) {
       return []
     }
+
+    if (!widget.selectedFields || widget.selectedFields.length === 0) {
+      const allFields = extractFields(data)
+      return allFields
+        .filter(f => {
+          const isNumeric = f.type === 'number' || (f.type === 'string' && f.value !== null && f.value !== undefined && isNumericValue(f.value))
+          return isNumeric
+        })
+        .slice(0, 4)
+        .map(f => ({
+          path: f.path,
+          type: f.type,
+          value: f.value,
+          label: f.path.split('_').pop().replace(/\d+\.\s*/, '') || f.path
+        }))
+    }
+
     return widget.selectedFields.filter(field => {
       const value = getNestedValue(data, field.path)
       const isNumeric = isNumericValue(value)
@@ -255,4 +269,5 @@ export default function WidgetChart({ widget, data }) {
     </div>
   )
 }
+
 

@@ -113,6 +113,24 @@ const useDashboardStore = create(
       clearAllWidgets: () => {
         set({ widgets: [] })
       },
+
+      loadTemplate: (template) => {
+        if (!template || !template.widgets || !Array.isArray(template.widgets)) {
+          console.error('Invalid template provided to loadTemplate')
+          return
+        }
+        const validWidgets = template.widgets
+          .filter((w) => w && typeof w === 'object')
+          .map((w) => {
+            const newWidget = {
+              ...w,
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              createdAt: new Date().toISOString(),
+            }
+            return newWidget
+          })
+        set({ widgets: validWidgets })
+      },
     }},
     {
       name: 'finance-dashboard-storage',

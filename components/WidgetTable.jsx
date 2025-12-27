@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { getNestedValue } from '@/utils/api'
+import { getNestedValue, extractFields } from '@/utils/api'
 import { autoFormat } from '@/utils/format'
 
 export default function WidgetTable({ widget, data }) {
@@ -66,6 +66,24 @@ export default function WidgetTable({ widget, data }) {
   const { array: arrayData, arrayKey } = extractArrayData(data)
 
   const columns = useMemo(() => {
+    if ((!widget.selectedFields || widget.selectedFields.length === 0) && arrayData && arrayData.length > 0) {
+      const firstItem = arrayData[0]
+      if (firstItem && typeof firstItem === 'object') {
+        const allFields = extractFields(firstItem)
+        const topFields = allFields
+          .filter(f => f.type !== 'object' && f.type !== 'array' && f.value !== null && f.value !== undefined)
+          .slice(0, 6)
+          .map(f => ({
+            path: f.path,
+            type: f.type,
+            value: f.value,
+            label: arrayKey ? `${arrayKey}.${f.path}` : f.path,
+            propertyPath: f.path
+          }))
+        return topFields
+      }
+    }
+
     if (widget.selectedFields && widget.selectedFields.length > 0) {
       return widget.selectedFields
         .filter((field) => {
@@ -206,7 +224,6 @@ export default function WidgetTable({ widget, data }) {
 
   return (
     <div className="space-y-4">
-      {/* Search */}
       <div className="relative">
         <input
           type="text"
