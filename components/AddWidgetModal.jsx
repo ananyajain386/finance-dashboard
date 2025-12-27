@@ -67,18 +67,6 @@ export default function AddWidgetModal({ isOpen, onClose }) {
       if (result.success && result.data) {
         const fields = extractFields(result.data)
         setAvailableFields(fields)
-        
-        if (fields.length > 0) {
-          if (displayMode === 'card') {
-            const topLevelFields = fields
-              .filter((f) => f.type !== 'object' && f.type !== 'array')
-              .slice(0, 3)
-            setSelectedFields(topLevelFields)
-          } else if (displayMode === 'chart') {
-            const numericFields = fields.filter(isNumericField).slice(0, 5)
-            setSelectedFields(numericFields)
-          }
-        }
       }
     } catch (error) {
       setTestResult({
@@ -166,13 +154,8 @@ export default function AddWidgetModal({ isOpen, onClose }) {
   }
 
   useEffect(() => {
-    if (displayMode === 'chart' && availableFields.length > 0 && selectedFields.length > 0) {
-      const numericSelected = selectedFields.filter(isNumericField)
-      if (numericSelected.length !== selectedFields.length) {
-        setSelectedFields(numericSelected)
-      }
-    }
-  }, [displayMode, availableFields.length, selectedFields.length]) 
+    setSelectedFields([])
+  }, [displayMode]) 
 
   const handleAddField = (field) => {
     const keyPath = displayMode === 'table' && field.label ? field.label : field.path

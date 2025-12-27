@@ -74,16 +74,8 @@ export default function WidgetConfigModal({ widget, isOpen, onClose, onUpdate })
   }
 
   useEffect(() => {
-    if (displayMode === 'chart' && availableFields.length > 0 && selectedFields.length > 0) {
-      const numericSelected = selectedFields.filter((field) => {
-        const availableField = availableFields.find(f => f.path === field.path)
-        return availableField ? isNumericField(availableField) : false
-      })
-      if (numericSelected.length !== selectedFields.length) {
-        setSelectedFields(numericSelected)
-      }
-    }
-  }, [displayMode, availableFields, selectedFields])
+    setSelectedFields([])
+  }, [displayMode])
 
   const handleAddField = (field) => {
     const keyPath = displayMode === 'table' && field.label ? field.label : field.path
