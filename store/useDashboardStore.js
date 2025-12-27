@@ -3,45 +3,75 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 
 const useDashboardStore = create(
   persist(
-    (set, get) => ({
-      theme: 'dark',
-      setTheme: (theme) => set({ theme }),
+    (set, get) => {
+      const cleanupWidgets = (widgets) => {
+        return (widgets || [])
+          .filter((w) => w && typeof w === 'object')
+          .map((w) => {
+            if (!w.id) {
+              return {
+                ...w,
+                id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              }
+            }
+            return w
+          })
+      }
 
-      widgets: [],
-      
-      addWidget: (widget) => {
+      return {
+        theme: 'dark',
+        setTheme: (theme) => set({ theme }),
+
+        widgets: cleanupWidgets([]),
+        
+        addWidget: (widget) => {
+        if (!widget || typeof widget !== 'object') {
+          console.error('Invalid widget provided to addWidget')
+          return null
+        }
         const newWidget = {
           ...widget,
-          id: Date.now().toString(),
-          createdAt: new Date().toISOString(),
+          id: widget.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          createdAt: widget.createdAt || new Date().toISOString(),
         }
         set((state) => ({
-          widgets: [...state.widgets, newWidget],
+          widgets: [...(state.widgets || []).filter((w) => w && w.id), newWidget],
         }))
         return newWidget.id
       },
 
       removeWidget: (id) => {
+        if (!id) return
         set((state) => ({
-          widgets: state.widgets.filter((w) => w.id !== id),
+          widgets: (state.widgets || []).filter((w) => w && w.id && w.id !== id),
         }))
       },
 
       updateWidget: (id, updates) => {
+        if (!id || !updates) return
         set((state) => ({
-          widgets: state.widgets.map((w) =>
-            w.id === id ? { ...w, ...updates } : w
-          ),
+          widgets: (state.widgets || [])
+            .filter((w) => w && w.id)
+            .map((w) =>
+              w.id === id ? { ...w, ...updates } : w
+            ),
         }))
       },
 
       reorderWidgets: (newOrder) => {
-        set({ widgets: newOrder })
+        const validOrder = (newOrder || []).filter((w) => w && w.id)
+        set({ widgets: validOrder })
       },
 
       moveWidget: (dragIndex, hoverIndex) => {
-        const widgets = [...get().widgets]
+        const widgets = [...get().widgets].filter((w) => w && w.id)
+        if (dragIndex < 0 || dragIndex >= widgets.length || hoverIndex < 0 || hoverIndex > widgets.length) {
+          return
+        }
         const draggedWidget = widgets[dragIndex]
+        if (!draggedWidget) {
+          return
+        }
         widgets.splice(dragIndex, 1)
         widgets.splice(hoverIndex, 0, draggedWidget)
         set({ widgets })
@@ -58,8 +88,19 @@ const useDashboardStore = create(
       importConfig: (configString) => {
         try {
           const config = JSON.parse(configString)
+          const validWidgets = (config.widgets || [])
+            .filter((w) => w && typeof w === 'object')
+            .map((w) => {
+              if (!w.id) {
+                return {
+                  ...w,
+                  id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                }
+              }
+              return w
+            })
           set({
-            widgets: config.widgets || [],
+            widgets: validWidgets,
             theme: config.theme || 'dark',
           })
           return true
@@ -72,15 +113,32 @@ const useDashboardStore = create(
       clearAllWidgets: () => {
         set({ widgets: [] })
       },
-    }),
+    }},
     {
       name: 'finance-dashboard-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        widgets: state.widgets,
+        widgets: (state.widgets || []).filter((w) => w && w.id),
         theme: state.theme,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state && state.widgets) {
+          const cleanedWidgets = (state.widgets || [])
+            .filter((w) => w && typeof w === 'object')
+            .map((w) => {
+              if (!w.id) {
+                return {
+                  ...w,
+                  id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                }
+              }
+              return w
+            })
+          state.widgets = cleanedWidgets
+        }
+      },
     }
+  
   )
 )
 

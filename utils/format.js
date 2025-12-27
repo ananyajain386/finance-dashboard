@@ -46,29 +46,23 @@ export const autoFormat = (value, format = 'auto') => {
   if (value === null || value === undefined) return 'N/A'
   
   if (format === 'auto') {
-    // First check for dates/timestamps - must be checked before number parsing
     if (typeof value === 'string') {
-      // Check for date patterns: YYYY-MM-DD, YYYY-MM-DD HH:MM:SS, etc.
       if (value.match(/^\d{4}-\d{2}-\d{2}/) || value.match(/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}/)) {
-        return value // Return date string as-is, don't format
+        return value 
       }
-      // Check for timestamps with keywords
       if (value.toLowerCase().includes('trading day') || 
           value.toLowerCase().includes('timestamp') ||
           value.toLowerCase().includes('date') ||
           value.match(/^\d{4}-\d{2}-\d{2}/)) {
-        return value // Return timestamp as-is
+        return value 
       }
     }
     
-    // Then check for numbers
     if (typeof value === 'number' || (typeof value === 'string' && !isNaN(parseFloat(value)) && value.trim() !== '')) {
       const numValue = parseFloat(value)
-      // Don't format as currency - just use number formatting
       if (Math.abs(numValue) < 1 && numValue !== 0) {
-        return formatNumber(numValue, 4) // More decimals for small numbers
+        return formatNumber(numValue, 4) 
       }
-      // Use number formatting without currency symbol
       return formatNumber(numValue)
     }
     

@@ -19,6 +19,10 @@ export default function Widget({ widget, index }) {
   const [lastUpdated, setLastUpdated] = useState(null)
   const [isConfigOpen, setIsConfigOpen] = useState(false)
 
+  if (!widget || !widget.id) {
+    return null
+  }
+
   const fetchData = async () => {
     if (!widget.apiUrl) return
 
@@ -115,7 +119,6 @@ export default function Widget({ widget, index }) {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 transition-all cursor-move">
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2">
-            {/* <div className="w-3 h-3 bg-blue-500 rounded"></div> */}
             <h2 className="font-semibold text-gray-900 dark:text-white text-lg">
               {widget.name || 'Untitled Widget'}
             </h2>

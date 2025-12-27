@@ -25,17 +25,34 @@ export default function WidgetTable({ widget, data }) {
           if (data[possibleArrayKey] && Array.isArray(data[possibleArrayKey])) {
             return { array: data[possibleArrayKey], arrayKey: possibleArrayKey }
           }
+          
+          for (const key in data) {
+            if (Array.isArray(data[key])) {
+              const normalizedKey = key.replace(/\s+/g, '_').replace(/[()]/g, '')
+              if (firstField.startsWith(normalizedKey + '_') || firstField.startsWith(key + '_')) {
+                return { array: data[key], arrayKey: key }
+              }
+            }
+          }
         }
       }
     }
 
-    const findArray = (obj, key = null) => {
+    const findArray = (obj, key = null, depth = 0) => {
+      if (depth > 3) return null 
+      
       if (Array.isArray(obj)) {
         return { array: obj, arrayKey: key }
       }
       if (typeof obj === 'object' && obj !== null) {
+        const priorityKeys = ['data', 'feed', 'top_gainers', 'top_losers', 'most_actively_traded', 'results', 'items']
+        for (const k of priorityKeys) {
+          if (obj[k] && Array.isArray(obj[k])) {
+            return { array: obj[k], arrayKey: k }
+          }
+        }
         for (const k in obj) {
-          const result = findArray(obj[k], k)
+          const result = findArray(obj[k], k, depth + 1)
           if (result) return result
         }
       }
@@ -50,37 +67,72 @@ export default function WidgetTable({ widget, data }) {
 
   const columns = useMemo(() => {
     if (widget.selectedFields && widget.selectedFields.length > 0) {
-      return widget.selectedFields.map((field) => {
-        let propertyPath = field.path
-        let label = field.path.split('_').pop() || 'Field'
-        
-        if (arrayKey && field.path.startsWith(`${arrayKey}_`)) {
-          const pathParts = field.path.split('_')
-          if (pathParts[0] === arrayKey && pathParts.length >= 3) {
-            propertyPath = pathParts.slice(2).join('.')
-            label = `${arrayKey}.${pathParts.slice(2).join('.')}`
-          } else if (pathParts[0] === arrayKey && pathParts.length === 2) {
-            propertyPath = ''
-            label = `${arrayKey}[${pathParts[1]}]`
+      return widget.selectedFields
+        .filter((field) => {
+          if (!arrayKey) return true 
+          
+          const arrayKeyPattern = arrayKey.replace(/\s+/g, '_').replace(/[()]/g, '')
+          const pathPrefix = `${arrayKeyPattern}_`
+          
+          if (field.path.startsWith(pathPrefix)) {
+            const remainingPath = field.path.substring(pathPrefix.length)
+            const remainingParts = remainingPath.split('_')
+            
+            if (remainingParts.length > 0 && !isNaN(parseInt(remainingParts[0], 10))) {
+              return true
+            }
           }
-        } else {
-          label = field.label || label
-        }
-        
-        return {
-          key: field.path, 
-          propertyPath: propertyPath, 
-          label: label,
-          format: field.format || 'auto',
-        }
-      })
+          
+          return field.path === arrayKey || field.path === arrayKeyPattern
+        })
+        .map((field) => {
+          let propertyPath = field.path
+          let label = field.path.split('_').pop() || 'Field'
+          
+          if (arrayKey) {
+            const arrayKeyPattern = arrayKey.replace(/\s+/g, '_').replace(/[()]/g, '')
+            const pathPrefix = `${arrayKeyPattern}_`
+            
+            if (field.path.startsWith(pathPrefix)) {
+              const remainingPath = field.path.substring(pathPrefix.length)
+              const remainingParts = remainingPath.split('_')
+              
+              if (remainingParts.length > 0 && !isNaN(parseInt(remainingParts[0], 10))) {
+                if (remainingParts.length > 1) {
+                  propertyPath = remainingParts.slice(1).join('_')
+                  label = remainingParts.slice(1).join(' ').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+                } else {
+                  propertyPath = ''
+                  label = arrayKey
+                }
+              } else {
+                propertyPath = remainingPath
+                label = remainingPath.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+              }
+            } else if (field.path === arrayKey || field.path === arrayKeyPattern) {
+              propertyPath = ''
+              label = arrayKey
+            }
+          }
+          
+          if (field.label) {
+            label = field.label
+          }
+          
+          return {
+            key: field.path, 
+            propertyPath: propertyPath, 
+            label: label,
+            format: field.format || 'auto',
+          }
+        })
     }
 
     if (arrayData.length > 0 && typeof arrayData[0] === 'object') {
       return Object.keys(arrayData[0]).map((key) => ({
-        key,
+        key: arrayKey ? `${arrayKey}_0_${key}` : key,
         propertyPath: key,
-        label: arrayKey ? `${arrayKey}.${key}` : (key.charAt(0).toUpperCase() + key.slice(1)),
+        label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
         format: 'auto',
       }))
     }
@@ -197,8 +249,18 @@ export default function WidgetTable({ widget, data }) {
                 className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/30"
               >
                 {columns.map((column) => {
+                  let value = null
                   
-                  let value = getNestedValue(item, column.propertyPath)
+                  if (column.propertyPath) {
+                    value = item[column.propertyPath]
+                    
+                    if (value === undefined) {
+                      value = getNestedValue(item, column.propertyPath)
+                    }
+                  } else {
+                    value = item
+                  }
+                  
                   if (Array.isArray(value)) {
                     if (value.length === 0) {
                       value = 'N/A'
@@ -209,6 +271,7 @@ export default function WidgetTable({ widget, data }) {
                         value = value.map((v, idx) => {
                           if (v.topic) return v.topic
                           if (v.ticker) return v.ticker
+                          if (v.executive) return v.executive
                           return `Item ${idx + 1}`
                         }).join(', ')
                       } else {
@@ -220,6 +283,7 @@ export default function WidgetTable({ widget, data }) {
                   } else if (typeof value === 'object' && value !== null) {
                     if (value.topic) value = value.topic
                     else if (value.ticker) value = value.ticker
+                    else if (value.executive) value = value.executive
                     else value = JSON.stringify(value).slice(0, 50) + (JSON.stringify(value).length > 50 ? '...' : '')
                   }
                   

@@ -8,6 +8,10 @@ import clsx from 'clsx'
 export default function DraggableWidget({ widget, index, moveWidget, totalWidgets }) {
   const ref = useRef(null)
 
+  if (!widget || !widget.id) {
+    return null
+  }
+
   const [{ isDragging }, drag] = useDrag({
     type: 'widget',
     item: () => ({ id: widget.id, index, totalWidgets }),

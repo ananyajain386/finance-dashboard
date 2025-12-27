@@ -124,15 +124,21 @@ export default function DashboardDropZone({ widgets, moveWidget, onAddWidget }) 
         isOver ? 'bg-primary-50 dark:bg-primary-900/10' : ''
       } transition-colors rounded-lg p-2`}
     >
-      {widgets.map((widget, index) => (
-        <DraggableWidget
-          key={widget.id}
-          widget={widget}
-          index={index}
-          moveWidget={moveWidget}
-          totalWidgets={widgets.length}
-        />
-      ))}
+      {(() => {
+        const validWidgets = widgets.filter((widget) => widget && widget.id)
+        return validWidgets.map((widget, index) => {
+          const originalIndex = widgets.findIndex((w) => w && w.id === widget.id)
+          return (
+            <DraggableWidget
+              key={widget.id}
+              widget={widget}
+              index={originalIndex >= 0 ? originalIndex : index}
+              moveWidget={moveWidget}
+              totalWidgets={validWidgets.length}
+            />
+          )
+        })
+      })()}
 
       <div
         onClick={onAddWidget}

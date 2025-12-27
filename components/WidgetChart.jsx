@@ -78,7 +78,12 @@ export default function WidgetChart({ widget, data }) {
               if (field.path.startsWith(`${key}_`)) {
                 const parts = field.path.split('_')
                 if (parts.length >= 3 && parts[0] === key) {
-                  propertyPath = parts.slice(2).join('.')
+                  const secondPart = parts[1]
+                  if (!isNaN(parseInt(secondPart, 10))) {
+                    propertyPath = parts.slice(2).join('_')
+                  } else {
+                    propertyPath = parts.slice(1).join('.')
+                  }
                 }
               }
               
@@ -92,6 +97,49 @@ export default function WidgetChart({ widget, data }) {
                 result[fieldKey] = (!isNaN(numValue) && isFinite(numValue)) ? numValue : 0
               }
             })
+            return result
+          })
+        }
+      }
+
+      const timeSeriesPattern = /time.?series|timeseries/i
+      for (const key in data) {
+        if (timeSeriesPattern.test(key) && typeof data[key] === 'object' && data[key] !== null && !Array.isArray(data[key])) {
+          const timeSeriesData = data[key]
+          const timestamps = Object.keys(timeSeriesData).sort().reverse() 
+          
+          return timestamps.map((timestamp, index) => {
+            const result = { index, timestamp }
+            const timestampData = timeSeriesData[timestamp]
+            
+            numericFields.forEach((field) => {
+              let propertyPath = field.path
+              
+              if (field.path.includes(key)) {
+                const pathParts = field.path.split('_')
+                const keyIndex = pathParts.findIndex(p => p.includes(key) || timeSeriesPattern.test(p))
+                
+                if (keyIndex >= 0 && pathParts.length > keyIndex + 1) {
+                  const possibleTimestamp = pathParts[keyIndex + 1]
+                  if (possibleTimestamp === timestamp || timestamps.includes(possibleTimestamp)) {
+                    propertyPath = pathParts.slice(keyIndex + 2).join('_')
+                  } else {
+                    propertyPath = pathParts.slice(keyIndex + 1).join('_')
+                  }
+                }
+              }
+              
+              const value = getNestedValue(timestampData, propertyPath) || getNestedValue(timestampData, field.path)
+              const fieldKey = field.label || field.path
+              
+              if (isNumericValue(value)) {
+                result[fieldKey] = typeof value === 'string' ? parseFloat(value) : value
+              } else {
+                const numValue = parseFloat(value)
+                result[fieldKey] = (!isNaN(numValue) && isFinite(numValue)) ? numValue : 0
+              }
+            })
+            
             return result
           })
         }
