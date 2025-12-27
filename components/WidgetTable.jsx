@@ -74,53 +74,66 @@ export default function WidgetTable({ widget, data }) {
           const arrayKeyPattern = arrayKey.replace(/\s+/g, '_').replace(/[()]/g, '')
           const pathPrefix = `${arrayKeyPattern}_`
           
-          if (field.path.startsWith(pathPrefix)) {
+          if (field.path && field.path.startsWith(pathPrefix)) {
             const remainingPath = field.path.substring(pathPrefix.length)
             const remainingParts = remainingPath.split('_')
-            
             if (remainingParts.length > 0 && !isNaN(parseInt(remainingParts[0], 10))) {
               return true
             }
+          }
+          
+          if (field.label && field.label.startsWith(`${arrayKey}.`)) {
+            return true
           }
           
           return field.path === arrayKey || field.path === arrayKeyPattern
         })
         .map((field) => {
           let propertyPath = field.path
-          let label = field.path.split('_').pop() || 'Field'
+          let label = field.label || field.path.split('_').pop() || 'Field'
           
-          if (arrayKey) {
+          if (field.propertyPath) {
+            propertyPath = field.propertyPath
+          } else if (arrayKey) {
             const arrayKeyPattern = arrayKey.replace(/\s+/g, '_').replace(/[()]/g, '')
             const pathPrefix = `${arrayKeyPattern}_`
             
-            if (field.path.startsWith(pathPrefix)) {
-              const remainingPath = field.path.substring(pathPrefix.length)
-              const remainingParts = remainingPath.split('_')
-              
-              if (remainingParts.length > 0 && !isNaN(parseInt(remainingParts[0], 10))) {
-                if (remainingParts.length > 1) {
-                  propertyPath = remainingParts.slice(1).join('_')
-                  label = remainingParts.slice(1).join(' ').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-                } else {
-                  propertyPath = ''
-                  label = arrayKey
-                }
-              } else {
-                propertyPath = remainingPath
-                label = remainingPath.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+            if (field.label && field.label.includes('.')) {
+              const parts = field.label.split('.')
+              if (parts.length > 1 && parts[0] === arrayKey) {
+                propertyPath = parts.slice(1).join('_')
+                label = field.label
               }
-            } else if (field.path === arrayKey || field.path === arrayKeyPattern) {
-              propertyPath = ''
-              label = arrayKey
+            }
+            
+            if (!propertyPath || propertyPath === field.path) {
+              if (field.path && field.path.startsWith(pathPrefix)) {
+                const remainingPath = field.path.substring(pathPrefix.length)
+                const remainingParts = remainingPath.split('_')
+                
+                if (remainingParts.length > 0 && !isNaN(parseInt(remainingParts[0], 10))) {
+                  if (remainingParts.length > 1) {
+                    propertyPath = remainingParts.slice(1).join('_')
+                    if (!field.label || !field.label.includes('.')) {
+                      label = `${arrayKey}.${propertyPath}`
+                    }
+                  } else {
+                    propertyPath = ''
+                    label = arrayKey
+                  }
+                } else {
+                  propertyPath = remainingPath
+                  label = remainingPath.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+                }
+              } else if (field.path === arrayKey || field.path === arrayKeyPattern) {
+                propertyPath = ''
+                label = arrayKey
+              }
             }
           }
           
-          if (field.label) {
-            label = field.label
-          }
-          
           return {
-            key: field.path, 
+            key: field.path || field.label, 
             propertyPath: propertyPath, 
             label: label,
             format: field.format || 'auto',

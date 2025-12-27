@@ -86,17 +86,41 @@ export default function WidgetConfigModal({ widget, isOpen, onClose, onUpdate })
   }, [displayMode, availableFields, selectedFields])
 
   const handleAddField = (field) => {
-    if (!selectedFields.find((f) => f.path === field.path)) {
-      const label = field.label || (field.propertyPath ? `${arrayKey || 'field'}.${field.propertyPath}` : field.path.split('.').pop())
-      setSelectedFields([...selectedFields, { ...field, label }])
+    const keyPath = displayMode === 'table' && field.label ? field.label : field.path
+    
+    if (!selectedFields.find((f) => {
+      const fKeyPath = displayMode === 'table' && f.label ? f.label : f.path
+      return fKeyPath === keyPath
+    })) {
+      const label = displayMode === 'table' && field.label ? field.label : (field.label || field.path)
+      setSelectedFields([...selectedFields, { ...field, label, displayPath: displayMode === 'table' ? field.label : undefined }])
     }
   }
 
-  const handleRemoveField = (path) => {
-    setSelectedFields(selectedFields.filter((f) => f.path !== path))
+  const handleRemoveField = (fieldToRemove) => {
+    setSelectedFields(selectedFields.filter((f) => {
+      if (displayMode === 'table') {
+        const fKeyPath = f.label ? f.label : f.path
+        const removeKeyPath = fieldToRemove.label ? fieldToRemove.label : fieldToRemove.path
+        return fKeyPath !== removeKeyPath
+      }
+      return f.path !== fieldToRemove.path
+    }))
   }
 
   const handleSave = () => {
+    if (displayMode === 'table') {
+      const tableFields = getTableFields()
+      if (arrayKeys.length === 0 || tableFields.length === 0) {
+        alert('Table mode requires array data. This API does not contain any arrays. Please use Card or Chart mode instead.')
+        return
+      }
+      if (selectedFields.length === 0) {
+        alert('Please select at least one field to display in table mode.')
+        return
+      }
+    }
+    
     onUpdate({
       name: widgetName,
       apiUrl: apiUrl.trim(),
@@ -107,54 +131,59 @@ export default function WidgetConfigModal({ widget, isOpen, onClose, onUpdate })
     onClose()
   }
 
-  const detectArrayKey = () => {
-    if (displayMode !== 'table' || availableFields.length === 0) return null
+  const detectArrayKeys = () => {
+    if (displayMode !== 'table' || availableFields.length === 0) return []
     
     const prefixCounts = {}
     availableFields.forEach(field => {
       const parts = field.path.split('_')
       if (parts.length >= 3) {
-        const prefix = parts[0]
-        prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1
+        if (!isNaN(parseInt(parts[1], 10))) {
+          const prefix = parts[0]
+          prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1
+        }
       }
     })
     
-    let maxCount = 0
-    let arrayKey = null
-    for (const [key, count] of Object.entries(prefixCounts)) {
-      if (count > maxCount) {
-        maxCount = count
-        arrayKey = key
-      }
-    }
-    
-    return arrayKey
+    return Object.entries(prefixCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([key]) => key)
   }
 
-  const arrayKey = detectArrayKey()
+  const arrayKeys = detectArrayKeys()
 
   const getTableFields = () => {
-    if (!arrayKey) return availableFields
+    if (arrayKeys.length === 0) return []
     
     const fieldMap = new Map()
     
-    availableFields.forEach(field => {
-      if (field.path.startsWith(`${arrayKey}_`)) {
-        const pathParts = field.path.split('_')
-        if (pathParts.length >= 3 && pathParts[0] === arrayKey) {
-          const propertyPath = pathParts.slice(2).join('.')
-          const label = `${arrayKey}.${propertyPath}`
+    arrayKeys.forEach(arrayKey => {
+      availableFields.forEach(field => {
+        const arrayKeyPattern = arrayKey.replace(/\s+/g, '_').replace(/[()]/g, '')
+        const pathPrefix = `${arrayKeyPattern}_`
+        
+        if (field.path.startsWith(pathPrefix)) {
+          const remainingPath = field.path.substring(pathPrefix.length)
+          const remainingParts = remainingPath.split('_')
           
-          if (!fieldMap.has(propertyPath)) {
-            fieldMap.set(propertyPath, {
-              ...field,
-              path: field.path, 
-              label: label,
-              propertyPath: propertyPath,
-            })
+          if (remainingParts.length > 0 && !isNaN(parseInt(remainingParts[0], 10))) {
+            if (remainingParts.length > 1) {
+              const propertyName = remainingParts.slice(1).join('_')
+              const displayPath = `${arrayKey}.${propertyName}`
+              
+              if (!fieldMap.has(displayPath)) {
+                fieldMap.set(displayPath, {
+                  ...field,
+                  path: field.path, 
+                  label: displayPath,
+                  propertyPath: propertyName, 
+                  arrayKey: arrayKey,
+                })
+              }
+            }
           }
         }
-      }
+      })
     })
     
     return Array.from(fieldMap.values())
@@ -305,6 +334,16 @@ export default function WidgetConfigModal({ widget, isOpen, onClose, onUpdate })
           </div>
 
           {availableFields.length > 0 && (
+            <>
+              {displayMode === 'table' && filteredFields.length === 0 && (
+                <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 rounded-lg text-sm">
+                  <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  Table mode requires array data. This API does not contain any arrays. Please use Card or Chart mode instead.
+                </div>
+              )}
+              {filteredFields.length > 0 && (
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <div className="mb-3">
@@ -339,7 +378,11 @@ export default function WidgetConfigModal({ widget, isOpen, onClose, onUpdate })
                         </div>
                         <button
                           onClick={() => handleAddField(field)}
-                          disabled={selectedFields.find((f) => f.path === field.path)}
+                          disabled={selectedFields.find((f) => {
+                            const fKeyPath = displayMode === 'table' && f.label ? f.label : f.path
+                            const fieldKeyPath = displayMode === 'table' && field.label ? field.label : field.path
+                            return fKeyPath === fieldKeyPath
+                          })}
                           className="ml-2 px-2 py-1 text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -392,7 +435,7 @@ export default function WidgetConfigModal({ widget, isOpen, onClose, onUpdate })
                             )}
                           </div>
                           <button
-                            onClick={() => handleRemoveField(field.path)}
+                            onClick={() => handleRemoveField(field)}
                             className="ml-2 px-2 py-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -406,6 +449,8 @@ export default function WidgetConfigModal({ widget, isOpen, onClose, onUpdate })
                 </div>
               </div>
             </div>
+              )}
+            </>
           )}
         </div>
 

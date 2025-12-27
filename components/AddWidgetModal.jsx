@@ -90,13 +90,72 @@ export default function AddWidgetModal({ isOpen, onClose }) {
     }
   }
 
+  const detectArrayKeys = () => {
+    if (displayMode !== 'table' || availableFields.length === 0) return []
+    
+    const prefixCounts = {}
+    availableFields.forEach(field => {
+      const parts = field.path.split('_')
+      if (parts.length >= 3) {
+        if (!isNaN(parseInt(parts[1], 10))) {
+          const prefix = parts[0]
+          prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1
+        }
+      }
+    })
+    
+    return Object.entries(prefixCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([key]) => key)
+  }
+
+  const arrayKeys = detectArrayKeys()
+
+  const getTableFields = () => {
+    if (arrayKeys.length === 0) return []
+    
+    const fieldMap = new Map()
+    
+    arrayKeys.forEach(arrayKey => {
+      availableFields.forEach(field => {
+        const arrayKeyPattern = arrayKey.replace(/\s+/g, '_').replace(/[()]/g, '')
+        const pathPrefix = `${arrayKeyPattern}_`
+        
+        if (field.path.startsWith(pathPrefix)) {
+          const remainingPath = field.path.substring(pathPrefix.length)
+          const remainingParts = remainingPath.split('_')
+          
+          if (remainingParts.length > 0 && !isNaN(parseInt(remainingParts[0], 10))) {
+            if (remainingParts.length > 1) {
+              const propertyName = remainingParts.slice(1).join('_')
+              const displayPath = `${arrayKey}.${propertyName}`
+              
+              if (!fieldMap.has(displayPath)) {
+                fieldMap.set(displayPath, {
+                  ...field,
+                  path: field.path,
+                  label: displayPath,
+                  propertyPath: propertyName,
+                  arrayKey: arrayKey,
+                })
+              }
+            }
+          }
+        }
+      })
+    })
+    
+    return Array.from(fieldMap.values())
+  }
+
   const getFilteredAvailableFields = () => {
-    let filtered = availableFields
+    let filtered = displayMode === 'table' ? getTableFields() : availableFields
     
     if (searchTerm) {
-      filtered = filtered.filter((field) =>
-        field.path.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      filtered = filtered.filter((field) => {
+        const searchText = (displayMode === 'table' && field.label ? field.label : field.path).toLowerCase()
+        return searchText.includes(searchTerm.toLowerCase())
+      })
     }
     
     if (displayMode === 'chart') {
@@ -116,19 +175,39 @@ export default function AddWidgetModal({ isOpen, onClose }) {
   }, [displayMode, availableFields.length, selectedFields.length]) 
 
   const handleAddField = (field) => {
-    if (!selectedFields.find((f) => f.path === field.path)) {
-      setSelectedFields([...selectedFields, { ...field, label: field.path.split('.').pop() }])
+    const keyPath = displayMode === 'table' && field.label ? field.label : field.path
+    
+    if (!selectedFields.find((f) => {
+      const fKeyPath = displayMode === 'table' && f.label ? f.label : f.path
+      return fKeyPath === keyPath
+    })) {
+      const label = displayMode === 'table' && field.label ? field.label : (field.label || field.path)
+      setSelectedFields([...selectedFields, { ...field, label, displayPath: displayMode === 'table' ? field.label : undefined }])
     }
   }
 
-  const handleRemoveField = (path) => {
-    setSelectedFields(selectedFields.filter((f) => f.path !== path))
+  const handleRemoveField = (fieldToRemove) => {
+    setSelectedFields(selectedFields.filter((f) => {
+      if (displayMode === 'table') {
+        const fKeyPath = f.label ? f.label : f.path
+        const removeKeyPath = fieldToRemove.label ? fieldToRemove.label : fieldToRemove.path
+        return fKeyPath !== removeKeyPath
+      }
+      return f.path !== fieldToRemove.path
+    }))
   }
 
   const handleSubmit = async () => {
     if (!widgetName.trim() || !apiUrl.trim()) {
       showError('Validation Error', 'Please fill in widget name and API URL')
       return
+    }
+
+    if (displayMode === 'table') {
+      if (arrayKeys.length === 0 || filteredFields.length === 0) {
+        showError('Validation Error', 'Table mode requires array data. This API does not contain any arrays. Please use Card or Chart mode instead.')
+        return
+      }
     }
 
     if (selectedFields.length === 0) {
@@ -298,6 +377,16 @@ export default function AddWidgetModal({ isOpen, onClose }) {
           </div>
 
           {availableFields.length > 0 && (
+            <>
+              {displayMode === 'table' && filteredFields.length === 0 && (
+                <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 rounded-lg text-sm">
+                  <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  Table mode requires array data. This API does not contain any arrays. Please use Card or Chart mode instead.
+                </div>
+              )}
+              {filteredFields.length > 0 && (
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <div className="mb-3">
@@ -318,7 +407,7 @@ export default function AddWidgetModal({ isOpen, onClose }) {
                       >
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-mono text-gray-900 dark:text-white truncate">
-                            {field.path}
+                            {displayMode === 'table' && field.label ? field.label : field.path}
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
                             {field.type}
@@ -328,11 +417,18 @@ export default function AddWidgetModal({ isOpen, onClose }) {
                             {field.count !== undefined && (
                               <span className="ml-2">| {field.count} items</span>
                             )}
+                            {displayMode === 'table' && field.propertyPath && (
+                              <span className="ml-2 text-gray-400">| {field.path}</span>
+                            )}
                           </div>
                         </div>
                         <button
                           onClick={() => handleAddField(field)}
-                          disabled={selectedFields.find((f) => f.path === field.path)}
+                          disabled={selectedFields.find((f) => {
+                            const fKeyPath = displayMode === 'table' && f.label ? f.label : f.path
+                            const fieldKeyPath = displayMode === 'table' && field.label ? field.label : field.path
+                            return fKeyPath === fieldKeyPath
+                          })}
                           className="ml-2 px-2 py-1 text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -363,22 +459,29 @@ export default function AddWidgetModal({ isOpen, onClose }) {
                         >
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-mono text-gray-900 dark:text-white truncate">
-                              {field.path}
+                              {displayMode === 'table' && field.label ? field.label : field.path}
                             </div>
-                            <input
-                              type="text"
-                              value={field.label || ''}
-                              onChange={(e) => {
-                                const updated = [...selectedFields]
-                                updated[index].label = e.target.value
-                                setSelectedFields(updated)
-                              }}
-                              placeholder="Label (optional)"
-                              className="mt-1 w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            />
+                            {displayMode !== 'table' && (
+                              <input
+                                type="text"
+                                value={field.label || ''}
+                                onChange={(e) => {
+                                  const updated = [...selectedFields]
+                                  updated[index].label = e.target.value
+                                  setSelectedFields(updated)
+                                }}
+                                placeholder="Label (optional)"
+                                className="mt-1 w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                              />
+                            )}
+                            {displayMode === 'table' && field.propertyPath && (
+                              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Path: {field.path}
+                              </div>
+                            )}
                           </div>
                           <button
-                            onClick={() => handleRemoveField(field.path)}
+                            onClick={() => handleRemoveField(field)}
                             className="ml-2 px-2 py-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -392,6 +495,8 @@ export default function AddWidgetModal({ isOpen, onClose }) {
                 </div>
               </div>
             </div>
+              )}
+            </>
           )}
         </div>
 
