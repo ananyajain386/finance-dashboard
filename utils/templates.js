@@ -54,39 +54,6 @@ export const defaultTemplates = [
     icon: 'chart',
     widgets: [
       {
-        name: 'IBM Intraday Chart',
-        apiUrl: 'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=IBM&interval=5min&apikey=demo',
-        refreshInterval: 3600,
-        displayMode: 'chart',
-        selectedFields: [
-          {
-            path: 'Time Series (5min)_2025-12-26 19:55:00_1. open',
-            type: 'number',
-            value: 304.91,
-            label: 'Open'
-          },
-          {
-            path: 'Time Series (5min)_2025-12-26 19:55:00_2. high',
-            type: 'number',
-            value: 305.09,
-            label: 'High'
-          },
-          {
-            path: 'Time Series (5min)_2025-12-26 19:55:00_3. low',
-            type: 'number',
-            value: 304.91,
-            label: 'Low'
-          },
-          {
-            path: 'Time Series (5min)_2025-12-26 19:55:00_4. close',
-            type: 'number',
-            value: 305.09,
-            label: 'Close'
-          }
-        ],
-        cacheMaxAge: 30000
-      },
-      {
         name: 'Insider Transactions',
         apiUrl: 'https://www.alphavantage.co/query?function=INSIDER_TRANSACTIONS&symbol=IBM&apikey=demo',
         refreshInterval: 3600,
